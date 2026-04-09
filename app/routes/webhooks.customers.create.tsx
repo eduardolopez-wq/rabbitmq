@@ -1,8 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { fetchCustomerDastMetafields } from "../services/customer.service";
 import { transformShopifyCustomerToDast, type ShopifyCustomerPayload } from "../services/customer.transformer";
 import { publish } from "../services/rabbitmq.server";
+import { isDastProfileComplete, loadDastMetafieldsForPublish } from "../services/dast-publish-gate.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, payload, topic, shop } = await authenticate.webhook(request);
@@ -11,13 +11,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const customer = payload as ShopifyCustomerPayload;
 
-  // Respond 200 immediately — do not block Shopify
   setImmediate(async () => {
     try {
       console.log(`[Webhook] Processing customer ID: ${customer.id}`);
 
-      // Always fetch metafields from the Admin API — never rely on the webhook payload
-      const metafields = await fetchCustomerDastMetafields(admin, customer.id);
+      if (!admin) {
+        console.warn("[Webhook] No admin session — cannot fetch metafields, skipping publish for shop:", shop);
+        return;
+      }
+
+      const metafields = await loadDastMetafieldsForPublish(admin, customer.id);
+
+      if (!isDastProfileComplete(metafields)) {
+        console.log(
+          "[Webhook] Skipping publish on customers/create — DAST incomplete (normal hasta que el cliente complete el perfil). customer:",
+          customer.id
+        );
+        return;
+      }
 
       const dastPayload = transformShopifyCustomerToDast(customer, metafields);
       console.log("[Webhook] Transformed DAST payload:", JSON.stringify(dastPayload, null, 2));
@@ -25,7 +36,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await publish("customer.created", dastPayload);
       console.log("[Webhook] Successfully published customer.created for shop:", shop);
     } catch (err) {
-      console.error("[Webhook] Error processing customer.created:", (err as Error).message);
+      const e = err as Error;
+      console.error("[Webhook] Error processing customer.created:", e.message, e.stack ?? "");
     }
   });
 

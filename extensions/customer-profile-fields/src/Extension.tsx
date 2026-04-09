@@ -30,9 +30,10 @@ const GENDER_OPTIONS = [
   { value: "3", label: "Prefiero no decirlo" },
 ];
 
+// Mismo orden que en Admin (lista personalizada): primero Portugal, luego España → índices 0=PT, 1=ES en customer.service
 const COUNTRY_OPTIONS = [
-  { value: "ES", label: "Espana (ES)" },
   { value: "PT", label: "Portugal (PT)" },
+  { value: "ES", label: "Espana (ES)" },
 ];
 
 const METAFIELDS_SET_MUTATION = `#graphql
@@ -52,11 +53,31 @@ const GET_CUSTOMER_METAFIELDS_QUERY = `#graphql
       documentType: metafield(namespace: "$app", key: "dast_document_type") { value }
       gender: metafield(namespace: "$app", key: "dast_gender") { value }
       birthDate: metafield(namespace: "$app", key: "dast_birth_date") { value }
-      telephone: metafield(namespace: "$app", key: "dast_telephone") { value }
-      countryCode: metafield(namespace: "$app", key: "dast_country_code") { value }
+      telephoneApp: metafield(namespace: "$app", key: "dast_telephone") { value }
+      phoneCustom: metafield(namespace: "custom", key: "dast_phone") { value }
+      countryApp: metafield(namespace: "$app", key: "dast_country_code") { value }
+      countryCustom: metafield(namespace: "custom", key: "dast_country") { value }
     }
   }
 `;
+
+function countryMetafieldToFormValue(raw: string): string {
+  const t = raw.trim();
+  if (!t) {
+    return "";
+  }
+  const up = t.toUpperCase();
+  if (up === "ES" || up === "PT") {
+    return up;
+  }
+  if (t === "0") {
+    return "PT";
+  }
+  if (t === "1") {
+    return "ES";
+  }
+  return "";
+}
 
 interface FormValues {
   publicId: string;
@@ -281,16 +302,28 @@ export default async () => {
   let customerId = "";
 
   try {
-    const result = await customerAccountFetch<{ data?: { customer?: Record<string, { value: string } | undefined> & { id?: string } } }>(GET_CUSTOMER_METAFIELDS_QUERY);
+    const result = await customerAccountFetch<{
+      data?: {
+        customer?: Record<string, { value: string } | undefined> & {
+          id?: string;
+          phoneCustom?: { value: string };
+          telephoneApp?: { value: string };
+          countryCustom?: { value: string };
+          countryApp?: { value: string };
+        };
+      };
+    }>(GET_CUSTOMER_METAFIELDS_QUERY);
     const c = result?.data?.customer;
     customerId = c?.id ?? "";
+    const phoneRaw = c?.phoneCustom?.value ?? c?.telephoneApp?.value ?? "";
+    const countryRaw = c?.countryCustom?.value ?? c?.countryApp?.value ?? "";
     initialValues = {
       publicId: c?.publicId?.value ?? "",
       documentType: c?.documentType?.value ?? "",
       gender: c?.gender?.value ?? "",
       birthDate: c?.birthDate?.value ?? "",
-      telephone: c?.telephone?.value ?? "",
-      countryCode: c?.countryCode?.value ?? "",
+      telephone: phoneRaw.trim(),
+      countryCode: countryMetafieldToFormValue(countryRaw),
     };
     initialComplete =
       !!initialValues.publicId &&

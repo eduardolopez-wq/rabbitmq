@@ -1,8 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { fetchCustomerDastMetafields } from "../services/customer.service";
 import { transformShopifyCustomerToDast, type ShopifyCustomerPayload } from "../services/customer.transformer";
 import { publish } from "../services/rabbitmq.server";
+import { isDastProfileComplete, loadDastMetafieldsForPublish } from "../services/dast-publish-gate.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, payload, topic, shop } = await authenticate.webhook(request);
@@ -11,23 +11,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const customer = payload as ShopifyCustomerPayload;
 
-  // Respond 200 immediately — do not block Shopify
   setImmediate(async () => {
     try {
       console.log(`[Webhook] Processing customer update ID: ${customer.id}`);
 
-      const metafields = await fetchCustomerDastMetafields(admin, customer.id);
+      if (!admin) {
+        console.warn("[Webhook] No admin session — cannot fetch metafields, skipping publish for shop:", shop);
+        return;
+      }
 
-      // Only publish if all required DAST fields are present
-      if (
-        !metafields.public_id ||
-        !metafields.document_type ||
-        !metafields.gender ||
-        !metafields.birth_date ||
-        !metafields.telephone ||
-        !metafields.country_code
-      ) {
-        console.log("[Webhook] Skipping publish — DAST metafields incomplete for customer:", customer.id);
+      const metafields = await loadDastMetafieldsForPublish(admin, customer.id);
+
+      const primaryAddress = customer.addresses?.[0];
+      const effectiveTelephone = (metafields.telephone || customer.phone || "").trim();
+      const effectiveCountry = (metafields.country_code || primaryAddress?.country_code || "").trim().toUpperCase();
+
+      if (!isDastProfileComplete(metafields)) {
+        console.log("[Webhook] Skipping publish — DAST incomplete for customer:", customer.id, {
+          hasPublicId: !!metafields.public_id?.trim(),
+          documentOk: Number.isFinite(metafields.document_type) && metafields.document_type >= 1,
+          genderOk: Number.isFinite(metafields.gender) && metafields.gender >= 1,
+          hasBirthDate: !!metafields.birth_date?.trim(),
+          effectiveTelephone: !!effectiveTelephone,
+          effectiveCountry: !!effectiveCountry,
+        });
         return;
       }
 
@@ -37,7 +44,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await publish("customer.created", dastPayload);
       console.log("[Webhook] Successfully published customer.created (update) for shop:", shop);
     } catch (err) {
-      console.error("[Webhook] Error processing customer.update:", (err as Error).message);
+      const e = err as Error;
+      console.error("[Webhook] Error processing customer.update:", e.message, e.stack ?? "");
     }
   });
 
