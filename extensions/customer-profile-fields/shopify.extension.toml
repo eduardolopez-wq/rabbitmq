@@ -1,0 +1,31 @@
+api_version = "2026-01"
+
+[[extensions]]
+name = "Customer Profile Fields"
+handle = "customer-profile-fields"
+uid = "1176d362-7b42-ce7e-6d11-46ec3d2982410a23b2ff"
+type = "ui_extension"
+
+[[extensions.targeting]]
+target = "customer-account.profile.block.render"
+module = "./src/Extension.tsx"
+
+[extensions.capabilities]
+api_access = true
+network_access = true
+
+[[extensions.metafields]]
+namespace = "custom"
+key = "dast_public_id"
+
+[[extensions.metafields]]
+namespace = "custom"
+key = "dast_document_type"
+
+[[extensions.metafields]]
+namespace = "custom"
+key = "dast_gender"
+
+[[extensions.metafields]]
+namespace = "custom"
+key = "dast_birth_date"

@@ -1,0 +1,158 @@
+{
+  "rabbit_version": "3.13.7",
+  "rabbitmq_version": "3.13.7",
+  "product_name": "RabbitMQ",
+  "product_version": "3.13.7",
+  "users": [],
+  "vhosts": [
+    {
+      "name": "/",
+      "description": "Default virtual host",
+      "tags": [],
+      "metadata": {
+        "description": "Default virtual host",
+        "tags": [],
+        "default_queue_type": "undefined"
+      }
+    }
+  ],
+  "permissions": [],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [
+    {
+      "name": "internal_cluster_id",
+      "value": "rabbitmq-cluster-id-qbmehrcXuWlZhKpUSONwGA"
+    }
+  ],
+  "policies": [],
+  "queues": [
+    {
+      "name": "ecommerce.partner.queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "ecommerce.pds.queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "order.created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "ecommerce.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "delays",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "messages",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "order.created",
+      "vhost": "/",
+      "type": "headers",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "ecommerce.events",
+      "vhost": "/",
+      "destination": "ecommerce.pds.queue",
+      "destination_type": "queue",
+      "routing_key": "address.*",
+      "arguments": {}
+    },
+    {
+      "source": "ecommerce.events",
+      "vhost": "/",
+      "destination": "ecommerce.pds.queue",
+      "destination_type": "queue",
+      "routing_key": "customer.*",
+      "arguments": {}
+    },
+    {
+      "source": "ecommerce.events",
+      "vhost": "/",
+      "destination": "order.created",
+      "destination_type": "exchange",
+      "routing_key": "order.created",
+      "arguments": {}
+    },
+    {
+      "source": "messages",
+      "vhost": "/",
+      "destination": "ecommerce.partner.queue",
+      "destination_type": "queue",
+      "routing_key": "ecommerce.partner.queue",
+      "arguments": {}
+    },
+    {
+      "source": "messages",
+      "vhost": "/",
+      "destination": "ecommerce.pds.queue",
+      "destination_type": "queue",
+      "routing_key": "ecommerce.pds.queue",
+      "arguments": {}
+    },
+    {
+      "source": "messages",
+      "vhost": "/",
+      "destination": "order.created",
+      "destination_type": "queue",
+      "routing_key": "order.created",
+      "arguments": {}
+    },
+    {
+      "source": "order.created",
+      "vhost": "/",
+      "destination": "ecommerce.partner.queue",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {
+        "haspartner": true
+      }
+    },
+    {
+      "source": "order.created",
+      "vhost": "/",
+      "destination": "ecommerce.pds.queue",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {}
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+Eres un ingeniero backend senior. Ayúdame a crear un servicio de integración con Shopify usando Node.js que escuche los webhooks de Shopify y publique eventos en RabbitMQ.
+
+Contexto
+
+Ya tengo una instancia de RabbitMQ funcionando localmente con esta configuración:
+
+• Exchange: ecommerce.events (tipo: topic)
+
+• Cola: ecommerce.pds.queue
+
+• Enlace: customer.* → ecommerce.pds.queue
+
+Conexión a RabbitMQ:
+
+• URL: amqp://desarrollo:desarrollo@localhost
+
+• URL Local: http://localhost:15672/
+
+Objetivo (Paso 1)
+
+Implementar la primera integración:
+
+👉 Cuando se crea un cliente en Shopify, publicar el evento customer.created en RabbitMQ.
+
+⸻
+
+Requisitos
+
+1. Crea un proyecto Node.js usando:
+
+• Express
+
+• amqplib
+
+• body-parser
+
+⸻
+
+2. Crea un endpoint de webhook:
+
+POST /webhooks/customers/create
+
+Este endpoint debe:
+
+• Recibir la carga útil del webhook de Shopify
+
+• Devolver un código 200 rápidamente
+
+• NO bloquear la ejecución
+
+⸻
+
+3. Transforma la carga útil de Shopify al formato DAST
+
+Ejemplo de carga útil de Shopify:
+
+{
+    "customer_shop_id": 8589,
+    "contract_public_uuid": "f0270669-720d-4239-bb80-7eb08678c1d1",
+    "public_id": "33515516P",
+    "name": "Amada de Juan Quirós",
+    "email": "amadadejuan@gmail.com",
+    "telephone": "609636130",
+    "zip_code": "",
+    "country_code": "ES",
+    "document_type": 1,
+    "gender": 2,
+    "birth_date": "1980-03-27",
+    "is_guest": false,
+    "routing_key": "customer.created"
+}
+
+⸻
+
+4. Publicar en RabbitMQ
+
+• Exchange: ecommerce.events
+
+• Clave de enrutamiento: customer.created
+
+• Carga útil: JSON
+
+⸻
+
+5. Crear un módulo reutilizable de RabbitMQ
+
+• Controlador de conexión
+
+• Función de publicación
+
+• Reconexión automática si es posible
+
+⸻
+
+6. Agregar registro de eventos
+
+Registro:
+
+• Webhook entrante
+
+• Carga útil transformada
+
+• Publicación exitosa/error
+
+⸻
+
+8. Información adicional (importante)
+
+• NO procese la lógica de negocio en el controlador.
+
+• Mantenga la transformación aislada.
+
+• El código debe ser limpio y modular.

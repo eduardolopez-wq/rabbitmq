@@ -1,0 +1,54 @@
+import type { CustomerDastMetafields } from "./customer.service";
+
+// Shopify customer webhook payload (subset of fields used)
+export interface ShopifyCustomerPayload {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  addresses: Array<{
+    zip: string;
+    country_code: string;
+  }>;
+}
+
+// DAST format published to RabbitMQ
+export interface DastCustomerPayload {
+  customer_shop_id: number;
+  contract_public_uuid: string;
+  public_id: string;
+  name: string;
+  email: string;
+  telephone: string;
+  zip_code: string;
+  country_code: string;
+  document_type: number;
+  gender: number;
+  birth_date: string;
+  is_guest: boolean;
+  routing_key: string;
+}
+
+export function transformShopifyCustomerToDast(
+  payload: ShopifyCustomerPayload,
+  metafields: CustomerDastMetafields
+): DastCustomerPayload {
+  const primaryAddress = payload.addresses?.[0];
+
+  return {
+    customer_shop_id: payload.id,
+    contract_public_uuid: metafields.contract_public_uuid,
+    public_id: metafields.public_id,
+    name: `${payload.first_name ?? ""} ${payload.last_name ?? ""}`.trim(),
+    email: payload.email ?? "",
+    telephone: payload.phone ?? "",
+    zip_code: primaryAddress?.zip ?? "",
+    country_code: primaryAddress?.country_code ?? "",
+    document_type: metafields.document_type,
+    gender: metafields.gender,
+    birth_date: metafields.birth_date,
+    is_guest: false,
+    routing_key: "customer.created",
+  };
+}

@@ -1,0 +1,10 @@
+{
+  "name": "customer-profile-fields",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@preact/signals": "^2.9.0",
+    "@shopify/ui-extensions": "~2026.1.0",
+    "preact": "^10.0.0"
+  }
+}
