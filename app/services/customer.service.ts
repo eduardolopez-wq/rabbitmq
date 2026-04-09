@@ -31,6 +31,8 @@ export interface CustomerDastMetafields {
   document_type: number;
   gender: number;
   birth_date: string;
+  telephone: string;
+  country_code: string;
 }
 
 function getMetafieldValue(
@@ -73,6 +75,8 @@ export async function fetchCustomerDastMetafields(
     document_type: parseInt(getMetafieldValue(allMetafields, "dast_document_type", appNamespaceMatcher) || "0", 10),
     gender: parseInt(getMetafieldValue(allMetafields, "dast_gender", appNamespaceMatcher) || "0", 10),
     birth_date: getMetafieldValue(allMetafields, "dast_birth_date", appNamespaceMatcher),
+    telephone: getMetafieldValue(allMetafields, "dast_telephone", appNamespaceMatcher),
+    country_code: getMetafieldValue(allMetafields, "dast_country_code", appNamespaceMatcher).toUpperCase(),
   };
 
   console.log("[CustomerService] Metafields retrieved:", metafields);

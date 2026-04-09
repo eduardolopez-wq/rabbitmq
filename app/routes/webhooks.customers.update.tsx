@@ -19,7 +19,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const metafields = await fetchCustomerDastMetafields(admin, customer.id);
 
       // Only publish if all required DAST fields are present
-      if (!metafields.public_id || !metafields.document_type || !metafields.gender || !metafields.birth_date) {
+      if (
+        !metafields.public_id ||
+        !metafields.document_type ||
+        !metafields.gender ||
+        !metafields.birth_date ||
+        !metafields.telephone ||
+        !metafields.country_code
+      ) {
         console.log("[Webhook] Skipping publish — DAST metafields incomplete for customer:", customer.id);
         return;
       }

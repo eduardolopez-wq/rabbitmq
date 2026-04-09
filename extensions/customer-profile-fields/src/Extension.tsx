@@ -30,6 +30,11 @@ const GENDER_OPTIONS = [
   { value: "3", label: "Prefiero no decirlo" },
 ];
 
+const COUNTRY_OPTIONS = [
+  { value: "ES", label: "Espana (ES)" },
+  { value: "PT", label: "Portugal (PT)" },
+];
+
 const METAFIELDS_SET_MUTATION = `#graphql
   mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
     metafieldsSet(metafields: $metafields) {
@@ -47,6 +52,8 @@ const GET_CUSTOMER_METAFIELDS_QUERY = `#graphql
       documentType: metafield(namespace: "$app", key: "dast_document_type") { value }
       gender: metafield(namespace: "$app", key: "dast_gender") { value }
       birthDate: metafield(namespace: "$app", key: "dast_birth_date") { value }
+      telephone: metafield(namespace: "$app", key: "dast_telephone") { value }
+      countryCode: metafield(namespace: "$app", key: "dast_country_code") { value }
     }
   }
 `;
@@ -56,6 +63,8 @@ interface FormValues {
   documentType: string;
   gender: string;
   birthDate: string;
+  telephone: string;
+  countryCode: string;
 }
 
 interface FormErrors {
@@ -63,6 +72,8 @@ interface FormErrors {
   documentType?: string;
   gender?: string;
   birthDate?: string;
+  telephone?: string;
+  countryCode?: string;
 }
 
 interface ExtensionProps {
@@ -96,6 +107,16 @@ function validate(values: FormValues): FormErrors {
     } else if (age < 18 || age > 120) {
       errors.birthDate = "Debes tener al menos 18 años";
     }
+  }
+  if (!values.telephone.trim()) {
+    errors.telephone = "El telefono es obligatorio";
+  } else if (!/^[0-9+\s-]{7,20}$/.test(values.telephone.trim())) {
+    errors.telephone = "Formato de telefono no valido";
+  }
+  if (!values.countryCode) {
+    errors.countryCode = "Selecciona el pais";
+  } else if (!["ES", "PT"].includes(values.countryCode)) {
+    errors.countryCode = "Solo se admite Espana o Portugal";
   }
 
   return errors;
@@ -136,6 +157,8 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
             { ownerId: customerId, namespace: "$app", key: "dast_document_type", value: values.documentType, type: "number_integer" },
             { ownerId: customerId, namespace: "$app", key: "dast_gender", value: values.gender, type: "number_integer" },
             { ownerId: customerId, namespace: "$app", key: "dast_birth_date", value: values.birthDate, type: "date" },
+            { ownerId: customerId, namespace: "$app", key: "dast_telephone", value: values.telephone.trim(), type: "single_line_text_field" },
+            { ownerId: customerId, namespace: "$app", key: "dast_country_code", value: values.countryCode.toUpperCase(), type: "single_line_text_field" },
           ],
         }
       );
@@ -174,6 +197,19 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
 
         <s-form>
           <s-stack direction="block" gap="base">
+            <s-select
+              label="Pais"
+              name="countryCode"
+              value={values.countryCode}
+              onChange={(e: Event) => handleChange("countryCode", (e.target as HTMLSelectElement).value)}
+            >
+              <s-option value="">Selecciona...</s-option>
+              {COUNTRY_OPTIONS.map((opt) => (
+                <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
+              ))}
+            </s-select>
+            {errors.countryCode && <s-text tone="critical">{errors.countryCode}</s-text>}
+
             <s-select
               label="Tipo de documento"
               name="documentType"
@@ -216,6 +252,14 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
             />
             {errors.birthDate && <s-text tone="critical">{errors.birthDate}</s-text>}
 
+            <s-text-field
+              label="Telefono"
+              name="telephone"
+              value={values.telephone}
+              onInput={(e: Event) => handleChange("telephone", (e.target as HTMLInputElement).value)}
+            />
+            {errors.telephone && <s-text tone="critical">{errors.telephone}</s-text>}
+
             <s-button
               variant="primary"
               onClick={handleSubmit}
@@ -232,7 +276,7 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
 
 // Query runs BEFORE render — this is the correct pattern for Customer Account extensions
 export default async () => {
-  let initialValues: FormValues = { publicId: "", documentType: "", gender: "", birthDate: "" };
+  let initialValues: FormValues = { publicId: "", documentType: "", gender: "", birthDate: "", telephone: "", countryCode: "" };
   let initialComplete = false;
   let customerId = "";
 
@@ -245,8 +289,16 @@ export default async () => {
       documentType: c?.documentType?.value ?? "",
       gender: c?.gender?.value ?? "",
       birthDate: c?.birthDate?.value ?? "",
+      telephone: c?.telephone?.value ?? "",
+      countryCode: c?.countryCode?.value ?? "",
     };
-    initialComplete = !!initialValues.publicId && !!initialValues.documentType && !!initialValues.gender && !!initialValues.birthDate;
+    initialComplete =
+      !!initialValues.publicId &&
+      !!initialValues.documentType &&
+      !!initialValues.gender &&
+      !!initialValues.birthDate &&
+      !!initialValues.telephone &&
+      !!initialValues.countryCode;
   } catch (err) {
     console.error("[CustomerProfileFields] Error loading metafields:", err);
   }

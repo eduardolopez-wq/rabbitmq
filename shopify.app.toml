@@ -29,6 +29,7 @@ api_version = "2026-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# Requeridos para webhooks de clientes, Admin API y metacampos con acceso a cuenta de cliente
 scopes = "write_metaobject_definitions,write_metaobjects,write_products,read_customers,write_customers,customer_read_customers,customer_write_customers"
 
 [auth]
@@ -63,6 +64,22 @@ type = "date"
 name = "DAST Birth Date"
 
   [customer.metafields.app.dast_birth_date.access]
+  admin = "merchant_read_write"
+  customer_account = "read_write"
+
+[customer.metafields.app.dast_telephone]
+type = "single_line_text_field"
+name = "DAST Telephone"
+
+  [customer.metafields.app.dast_telephone.access]
+  admin = "merchant_read_write"
+  customer_account = "read_write"
+
+[customer.metafields.app.dast_country_code]
+type = "single_line_text_field"
+name = "DAST Country Code"
+
+  [customer.metafields.app.dast_country_code.access]
   admin = "merchant_read_write"
   customer_account = "read_write"
 

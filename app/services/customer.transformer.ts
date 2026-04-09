@@ -35,6 +35,7 @@ export function transformShopifyCustomerToDast(
   metafields: CustomerDastMetafields
 ): DastCustomerPayload {
   const primaryAddress = payload.addresses?.[0];
+  const fallbackCountryCode = (primaryAddress?.country_code ?? "").toUpperCase();
 
   return {
     customer_shop_id: payload.id,
@@ -42,9 +43,9 @@ export function transformShopifyCustomerToDast(
     public_id: metafields.public_id,
     name: `${payload.first_name ?? ""} ${payload.last_name ?? ""}`.trim(),
     email: payload.email ?? "",
-    telephone: payload.phone ?? "",
+    telephone: metafields.telephone || payload.phone || "",
     zip_code: primaryAddress?.zip ?? "",
-    country_code: primaryAddress?.country_code ?? "",
+    country_code: metafields.country_code || fallbackCountryCode,
     document_type: metafields.document_type,
     gender: metafields.gender,
     birth_date: metafields.birth_date,
