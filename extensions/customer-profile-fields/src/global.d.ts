@@ -12,7 +12,14 @@ declare module "preact" {
       "s-stack": AnyProps & WithChildren & { direction?: string; gap?: string };
       "s-select": AnyProps & WithChildren & { label?: string; name?: string; value?: string; onChange?: (e: Event) => void };
       "s-option": AnyProps & WithChildren & { value?: string };
-      "s-text-field": AnyProps & { label?: string; name?: string; value?: string; onInput?: (e: Event) => void };
+      "s-text-field": AnyProps & {
+        label?: string;
+        name?: string;
+        value?: string;
+        disabled?: boolean;
+        placeholder?: string;
+        onInput?: (e: Event) => void;
+      };
       "s-date-field": AnyProps & { label?: string; name?: string; value?: string; onChange?: (e: Event) => void };
       "s-button": AnyProps & WithChildren & { variant?: string; type?: string; loading?: boolean; onClick?: () => void };
       "s-text": AnyProps & WithChildren & { tone?: string };

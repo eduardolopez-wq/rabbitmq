@@ -24,6 +24,39 @@ const DOCUMENT_TYPES = [
   { value: "3", label: "Pasaporte" },
 ];
 
+/** DNI y NIE: longitud fija de negocio. Pasaporte: longitud fija de negocio. */
+const DOCUMENT_LENGTH_DNI_NIE = 10;
+const DOCUMENT_LENGTH_PASSPORT = 20;
+
+function getPublicIdFormatError(documentType: string, raw: string): string | undefined {
+  if (!documentType) {
+    return undefined;
+  }
+  const id = raw.trim().toUpperCase();
+  if (!id) {
+    return "El número de documento es obligatorio";
+  }
+  if (documentType === "1" || documentType === "2") {
+    if (id.length !== DOCUMENT_LENGTH_DNI_NIE) {
+      return `DNI y NIE deben tener exactamente ${DOCUMENT_LENGTH_DNI_NIE} caracteres`;
+    }
+    if (!/^[A-Z0-9]+$/.test(id)) {
+      return "Solo se permiten letras y números, sin espacios";
+    }
+    return undefined;
+  }
+  if (documentType === "3") {
+    if (id.length !== DOCUMENT_LENGTH_PASSPORT) {
+      return `El pasaporte debe tener exactamente ${DOCUMENT_LENGTH_PASSPORT} caracteres`;
+    }
+    if (!/^[A-Z0-9]+$/.test(id)) {
+      return "Solo se permiten letras y números, sin espacios";
+    }
+    return undefined;
+  }
+  return "Tipo de documento no válido";
+}
+
 const GENDER_OPTIONS = [
   { value: "1", label: "Hombre" },
   { value: "2", label: "Mujer" },
@@ -106,13 +139,12 @@ interface ExtensionProps {
 function validate(values: FormValues): FormErrors {
   const errors: FormErrors = {};
 
-  if (!values.publicId.trim()) {
-    errors.publicId = "El número de documento es obligatorio";
-  } else if (!/^[A-Z0-9]{6,20}$/i.test(values.publicId.trim())) {
-    errors.publicId = "Formato de documento no válido";
-  }
   if (!values.documentType) {
     errors.documentType = "Selecciona el tipo de documento";
+  }
+  const publicIdErr = getPublicIdFormatError(values.documentType, values.publicId);
+  if (publicIdErr) {
+    errors.publicId = publicIdErr;
   }
   if (!values.gender) {
     errors.gender = "Selecciona el género";
@@ -152,9 +184,14 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
   const [isComplete, setIsComplete] = useState(initialComplete);
 
   function handleChange(field: keyof FormValues, value: string) {
-    setValues((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
+    setValues((prev) => {
+      if (field === "documentType" && value !== prev.documentType) {
+        return { ...prev, documentType: value, publicId: "" };
+      }
+      return { ...prev, [field]: value };
+    });
+    if (errors[field] || (field === "documentType" && errors.publicId)) {
+      setErrors((prev) => ({ ...prev, [field]: undefined, ...(field === "documentType" ? { publicId: undefined } : {}) }));
     }
     setSaved(false);
   }
@@ -244,10 +281,21 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
             </s-select>
             {errors.documentType && <s-text tone="critical">{errors.documentType}</s-text>}
 
+            {!values.documentType && (
+              <s-text tone="subdued">Selecciona primero el tipo de documento para introducir el número.</s-text>
+            )}
             <s-text-field
               label="Número de documento"
               name="publicId"
               value={values.publicId}
+              disabled={!values.documentType}
+              placeholder={
+                !values.documentType
+                  ? "—"
+                  : values.documentType === "3"
+                    ? `${DOCUMENT_LENGTH_PASSPORT} caracteres (letras y números)`
+                    : `${DOCUMENT_LENGTH_DNI_NIE} caracteres (letras y números)`
+              }
               onInput={(e: Event) => handleChange("publicId", (e.target as HTMLInputElement).value)}
             />
             {errors.publicId && <s-text tone="critical">{errors.publicId}</s-text>}
