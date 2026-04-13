@@ -32,3 +32,12 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model SeenAddress {
+  addressShopId   BigInt
+  customerShopId  BigInt
+  shop            String
+  createdAt       DateTime @default(now())
+
+  @@id([addressShopId, shop])
+}

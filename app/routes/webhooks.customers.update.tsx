@@ -3,6 +3,7 @@ import { authenticate } from "../shopify.server";
 import { transformShopifyCustomerToDast, type ShopifyCustomerPayload } from "../services/customer.transformer";
 import { publish } from "../services/rabbitmq.server";
 import { isDastProfileComplete, loadDastMetafieldsForPublish } from "../services/dast-publish-gate.server";
+import { publishAddressEvents } from "../services/address.service";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, payload, topic, shop } = await authenticate.webhook(request);
@@ -38,11 +39,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return;
       }
 
+      // Publish customer event
       const dastPayload = transformShopifyCustomerToDast(customer, metafields);
       console.log("[Webhook] Transformed DAST payload:", JSON.stringify(dastPayload, null, 2));
+      await publish("customer.modified", dastPayload);
+      console.log("[Webhook] Successfully published customer.modified for shop:", shop);
 
-      await publish("customer.created", dastPayload);
-      console.log("[Webhook] Successfully published customer.created (update) for shop:", shop);
+      // Publish address events for each address in the payload
+      if (customer.addresses?.length) {
+        await publishAddressEvents(customer.addresses, customer, metafields, shop);
+      }
     } catch (err) {
       const e = err as Error;
       console.error("[Webhook] Error processing customer.update:", e.message, e.stack ?? "");

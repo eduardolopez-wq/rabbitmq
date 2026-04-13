@@ -8,8 +8,18 @@ export interface ShopifyCustomerPayload {
   last_name: string;
   phone: string | null;
   addresses: Array<{
+    id: number;
+    first_name: string;
+    last_name: string;
+    company: string | null;
+    address1: string;
+    address2: string | null;
+    city: string;
     zip: string;
+    province: string | null;
     country_code: string;
+    phone: string | null;
+    name: string;
   }>;
 }
 
