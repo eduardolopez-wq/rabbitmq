@@ -188,6 +188,10 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
       if (field === "documentType" && value !== prev.documentType) {
         return { ...prev, documentType: value, publicId: "" };
       }
+      if (field === "publicId" && prev.documentType) {
+        const maxLen = prev.documentType === "3" ? DOCUMENT_LENGTH_PASSPORT : DOCUMENT_LENGTH_DNI_NIE;
+        return { ...prev, publicId: value.slice(0, maxLen) };
+      }
       return { ...prev, [field]: value };
     });
     if (errors[field] || (field === "documentType" && errors.publicId)) {
