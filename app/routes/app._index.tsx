@@ -4,337 +4,180 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
+import { getShopSettingsForForm } from "../services/shop-settings.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+type FieldErrors = Partial<{
+  rabbitmqHost: string;
+  rabbitmqUser: string;
+  rabbitmqPassword: string;
+  rabbitmqPort: string;
+  rabbitmqVhost: string;
+}>;
 
-  return null;
+type ActionData = { ok: true } | { ok: false; errors: FieldErrors };
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const settings = await getShopSettingsForForm(session.shop);
+  return { shop: session.shop, settings };
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-            demoInfo: metafield(namespace: "$app", key: "demo_info") {
-              jsonValue
-            }
-          }
-        }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-          metafields: [
-            {
-              namespace: "$app",
-              key: "demo_info",
-              value: "Created by React Router Template",
-            },
-          ],
-        },
-      },
+export const action = async ({ request }: ActionFunctionArgs): Promise<ActionData> => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+
+  const rabbitmqHost = String(formData.get("rabbitmqHost") ?? "").trim();
+  const rabbitmqUser = String(formData.get("rabbitmqUser") ?? "").trim();
+  const rabbitmqPasswordRaw = String(formData.get("rabbitmqPassword") ?? "");
+  const rabbitmqPortRaw = String(formData.get("rabbitmqPort") ?? "").trim();
+  const rabbitmqVhostRaw = String(formData.get("rabbitmqVhost") ?? "").trim();
+  const pdsApiKey = String(formData.get("pdsApiKey") ?? "").trim();
+
+  const errors: FieldErrors = {};
+
+  if (!rabbitmqHost) {
+    errors.rabbitmqHost = "Obligatorio";
+  }
+  if (!rabbitmqUser) {
+    errors.rabbitmqUser = "Obligatorio";
+  }
+  const port = Number.parseInt(rabbitmqPortRaw, 10);
+  if (!Number.isFinite(port) || port < 1 || port > 65535) {
+    errors.rabbitmqPort = "Indica un puerto entre 1 y 65535 (normalmente 5672)";
+  }
+  const rabbitmqVhost = rabbitmqVhostRaw.trim() || "/";
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+
+  const existing = await prisma.shopIntegrationSettings.findUnique({
+    where: { shop: session.shop },
+  });
+  const rabbitmqPassword =
+    rabbitmqPasswordRaw.trim() || existing?.rabbitmqPassword || "";
+
+  await prisma.shopIntegrationSettings.upsert({
+    where: { shop: session.shop },
+    create: {
+      shop: session.shop,
+      rabbitmqHost,
+      rabbitmqUser,
+      rabbitmqPassword,
+      rabbitmqPort: port,
+      rabbitmqVhost,
+      pdsApiKey,
     },
-  );
-  const responseJson = await response.json();
-
-  const product = responseJson.data!.productCreate!.product!;
-  const variantId = product.variants.edges[0]!.node!.id!;
-
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
-        }
-      }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
+    update: {
+      rabbitmqHost,
+      rabbitmqUser,
+      rabbitmqPassword,
+      rabbitmqPort: port,
+      rabbitmqVhost,
+      pdsApiKey,
     },
-  );
+  });
 
-  const variantResponseJson = await variantResponse.json();
-
-  const metaobjectResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
-      metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
-        metaobject {
-          id
-          handle
-          title: field(key: "title") {
-            jsonValue
-          }
-          description: field(key: "description") {
-            jsonValue
-          }
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`,
-    {
-      variables: {
-        handle: {
-          type: "$app:example",
-          handle: "demo-entry",
-        },
-        metaobject: {
-          fields: [
-            { key: "title", value: "Demo Entry" },
-            {
-              key: "description",
-              value:
-                "This metaobject was created by the Shopify app template to demonstrate the metaobject API.",
-            },
-          ],
-        },
-      },
-    },
-  );
-
-  const metaobjectResponseJson = await metaobjectResponse.json();
-
-  return {
-    product: responseJson!.data!.productCreate!.product,
-    variant:
-      variantResponseJson!.data!.productVariantsBulkUpdate!.productVariants,
-    metaobject:
-      metaobjectResponseJson!.data!.metaobjectUpsert!.metaobject,
-  };
+  return { ok: true };
 };
 
 export default function Index() {
+  const { settings } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-
   const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
+
+  const isSaving =
+    fetcher.state === "submitting" || fetcher.state === "loading";
+  const fieldErrors =
+    fetcher.data?.ok === false ? fetcher.data.errors : undefined;
 
   useEffect(() => {
-    if (fetcher.data?.product?.id) {
-      shopify.toast.show("Product created");
+    if (fetcher.state === "idle" && fetcher.data?.ok === true) {
+      shopify.toast.show("Configuración guardada");
     }
-  }, [fetcher.data?.product?.id, shopify]);
+  }, [fetcher.state, fetcher.data, shopify]);
 
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
+  const defaults = {
+    rabbitmqHost: settings?.rabbitmqHost ?? "",
+    rabbitmqUser: settings?.rabbitmqUser ?? "",
+    rabbitmqPort: settings?.rabbitmqPort ?? 5672,
+    rabbitmqVhost: settings?.rabbitmqVhost ?? "/",
+    pdsApiKey: settings?.pdsApiKey ?? "",
+  };
 
   return (
-    <s-page heading="Shopify app template">
-      <s-button slot="primary-action" onClick={generateProduct}>
-        Generate a product
-      </s-button>
+    <s-page heading="Configuración RabbitMQ">
+      <s-section heading="Conexión Portal de Gestión">
 
-      <s-section heading="Congrats on creating a new Shopify app 🎉">
-        <s-paragraph>
-          This embedded app template uses{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/tools/app-bridge"
-            target="_blank"
-          >
-            App Bridge
-          </s-link>{" "}
-          interface examples like an{" "}
-          <s-link href="/app/additional">additional page in the app nav</s-link>
-          , as well as an{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            Admin GraphQL
-          </s-link>{" "}
-          mutation demo, to provide a starting point for app development.
-        </s-paragraph>
-      </s-section>
-      <s-section heading="Get started with products">
-        <s-paragraph>
-          Generate a product with GraphQL and get the JSON output for that
-          product. Learn more about the{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-            target="_blank"
-          >
-            productCreate
-          </s-link>{" "}
-          mutation in our API references. Includes a product{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data/metafields"
-            target="_blank"
-          >
-            metafield
-          </s-link>{" "}
-          and{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data/metaobjects"
-            target="_blank"
-          >
-            metaobject
-          </s-link>
-          .
-        </s-paragraph>
-        <s-stack direction="inline" gap="base">
-          <s-button
-            onClick={generateProduct}
-            {...(isLoading ? { loading: true } : {})}
-          >
-            Generate a product
-          </s-button>
-          {fetcher.data?.product && (
-            <s-button
-              onClick={() => {
-                shopify.intents.invoke?.("edit:shopify/Product", {
-                  value: fetcher.data?.product?.id,
-                });
-              }}
-              target="_blank"
-              variant="tertiary"
-            >
-              Edit product
-            </s-button>
-          )}
-        </s-stack>
-        {fetcher.data?.product && (
-          <s-section heading="productCreate mutation">
-            <s-stack direction="block" gap="base">
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
+        <fetcher.Form
+          method="post"
+          key={settings?.updatedAt ?? "new"}
+        >
+          <s-stack direction="block" gap="base">
+            <s-text-field
+              label="URL RabbitMQ"
+              name="rabbitmqHost"
+              defaultValue={defaults.rabbitmqHost}
+              details="Ejemplo: localhost o rmq.vivofacil.org"
+              required
+              error={fieldErrors?.rabbitmqHost}
+            />
+            <s-text-field
+              label="Usuario RabbitMQ"
+              name="rabbitmqUser"
+              defaultValue={defaults.rabbitmqUser}
+              required
+              error={fieldErrors?.rabbitmqUser}
+            />
+            <s-password-field
+              label="Contraseña RabbitMQ"
+              name="rabbitmqPassword"
+              autocomplete="new-password"
+              details={
+                settings?.rabbitmqHasPassword
+                  ? "Dejar en blanco para no cambiar la contraseña guardada."
+                  : "Obligatoria si el broker la exige."
+              }
+              error={fieldErrors?.rabbitmqPassword}
+            />
+            <s-text-field
+              label="Puerto RabbitMQ"
+              name="rabbitmqPort"
+              defaultValue={String(defaults.rabbitmqPort)}
+              details="Normalmente 5672"
+              required
+              error={fieldErrors?.rabbitmqPort}
+            />
+            <s-text-field
+              label="VHost RabbitMQ"
+              name="rabbitmqVhost"
+              defaultValue={defaults.rabbitmqVhost}
+              details="Normalmente /"
+              required
+              error={fieldErrors?.rabbitmqVhost}
+            />
+            <s-text-field
+              label="PDS API Key"
+              name="pdsApiKey"
+              defaultValue={defaults.pdsApiKey}
+              details="Contrato en el portal de gestión."
+            />
+            <s-stack direction="inline" gap="base">
+              <s-button
+                variant="primary"
+                type="submit"
+                {...(isSaving ? { loading: true } : {})}
               >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.product, null, 2)}</code>
-                </pre>
-              </s-box>
-
-              <s-heading>productVariantsBulkUpdate mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.variant, null, 2)}</code>
-                </pre>
-              </s-box>
-
-              <s-heading>metaobjectUpsert mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>
-                    {JSON.stringify(fetcher.data.metaobject, null, 2)}
-                  </code>
-                </pre>
-              </s-box>
+                Guardar
+              </s-button>
             </s-stack>
-          </s-section>
-        )}
-      </s-section>
-
-      <s-section slot="aside" heading="App template specs">
-        <s-paragraph>
-          <s-text>Framework: </s-text>
-          <s-link href="https://reactrouter.com/" target="_blank">
-            React Router
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Interface: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/app-home/using-polaris-components"
-            target="_blank"
-          >
-            Polaris web components
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>API: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            GraphQL
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Custom data: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data"
-            target="_blank"
-          >
-            Metafields &amp; metaobjects
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Database: </s-text>
-          <s-link href="https://www.prisma.io/" target="_blank">
-            Prisma
-          </s-link>
-        </s-paragraph>
-      </s-section>
-
-      <s-section slot="aside" heading="Next steps">
-        <s-unordered-list>
-          <s-list-item>
-            Build an{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/getting-started/build-app-example"
-              target="_blank"
-            >
-              example app
-            </s-link>
-          </s-list-item>
-          <s-list-item>
-            Explore Shopify&apos;s API with{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-              target="_blank"
-            >
-              GraphiQL
-            </s-link>
-          </s-list-item>
-        </s-unordered-list>
+          </s-stack>
+        </fetcher.Form>
       </s-section>
     </s-page>
   );

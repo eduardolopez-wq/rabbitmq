@@ -3,14 +3,12 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+// Connection URL lives in prisma.config.ts (Prisma ORM 7+).
 datasource db {
   provider = "sqlite"
-  url      = "file:dev.sqlite"
 }
 
 model Session {
@@ -40,4 +38,17 @@ model SeenAddress {
   createdAt       DateTime @default(now())
 
   @@id([addressShopId, shop])
+}
+
+/// Parámetros de integración por tienda (RabbitMQ + PDS), configurables desde el admin embebido.
+model ShopIntegrationSettings {
+  shop             String   @id
+  rabbitmqHost     String   @default("")
+  rabbitmqUser     String   @default("")
+  rabbitmqPassword String   @default("")
+  rabbitmqPort     Int      @default(5672)
+  rabbitmqVhost    String   @default("/")
+  pdsApiKey        String   @default("")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }

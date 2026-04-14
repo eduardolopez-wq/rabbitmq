@@ -37,17 +37,20 @@ export interface DastCustomerPayload {
   gender: number;
   birth_date: string;
   is_guest: boolean;
-  routing_key: string;
+  routing_key: "customer.created" | "customer.modified";
+  /** Presente en `customer.modified` (portal DAST). */
+  updated?: 1;
 }
 
 export function transformShopifyCustomerToDast(
   payload: ShopifyCustomerPayload,
-  metafields: CustomerDastMetafields
+  metafields: CustomerDastMetafields,
+  routingKey: "customer.created" | "customer.modified"
 ): DastCustomerPayload {
   const primaryAddress = payload.addresses?.[0];
   const fallbackCountryCode = (primaryAddress?.country_code ?? "").toUpperCase();
 
-  return {
+  const base: DastCustomerPayload = {
     customer_shop_id: payload.id,
     contract_public_uuid: metafields.contract_public_uuid,
     public_id: metafields.public_id,
@@ -60,6 +63,12 @@ export function transformShopifyCustomerToDast(
     gender: metafields.gender,
     birth_date: metafields.birth_date,
     is_guest: false,
-    routing_key: "customer.created",
+    routing_key: routingKey,
   };
+
+  if (routingKey === "customer.modified") {
+    base.updated = 1;
+  }
+
+  return base;
 }
