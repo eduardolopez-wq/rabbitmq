@@ -1,26 +1,42 @@
 # RabbitMQ Portal — Shopify App
 
-Shopify app embebida que escucha eventos de clientes (`customers/create`, `customers/update`) y los publica a un exchange de RabbitMQ en formato DAST, sirviendo como puente de integración entre Shopify y el portal de VivoFácil.
+Shopify app embebida que escucha eventos de clientes (`customers/create`, `customers/update`) y órdenes (`orders/paid`), publicándolos a un exchange de RabbitMQ en formato DAST, sirviendo como puente de integración entre Shopify y el portal de VivoFácil.
 
 ## Arquitectura
 
 ```
 Shopify Webhook
-  └─► webhooks.customers.create / .update
-        └─► dast-publish-gate (valida perfil completo)
-              └─► customer.service (fetcha metafields vía Admin GraphQL)
-                    └─► customer.transformer (mapea a formato DAST)
-                          └─► rabbitmq.server → exchange: ecommerce.events
-                                                routing key: customer.created
+  ├─► webhooks.customers.create / .update
+  │     └─► dast-publish-gate (valida perfil completo)
+  │           └─► customer.service (fetcha metafields vía Admin GraphQL)
+  │                 ├─► customer.transformer → routing key: customer.created / customer.modified
+  │                 └─► address.transformer  → routing key: address.created / address.modified
+  │                       └─► rabbitmq.server → exchange: ecommerce.events
+  │
+  └─► webhooks.orders.paid
+        └─► customer.service (fetcha metafields vía Admin GraphQL)
+              └─► order.transformer → routing key: order.created
+                    └─► rabbitmq.server → exchange: ecommerce.events
 ```
 
 ## Flujo de publicación
+
+### Clientes (`customers/create` y `customers/update`)
 
 1. Shopify dispara `customers/create` o `customers/update`.
 2. El webhook responde `200` inmediatamente y procesa en `setImmediate` para no bloquear.
 3. Se leen los metafields DAST del cliente vía Admin GraphQL (con un reintento a 2s para cubrir la carrera entre el webhook y la escritura de metafields).
 4. Si el perfil DAST está incompleto (`public_id`, `document_type ≥ 1`, `gender ≥ 1`, `birth_date` requeridos), se omite la publicación.
-5. El payload se transforma al formato DAST y se publica al exchange `ecommerce.events` con routing key `customer.created`.
+5. El payload se transforma al formato DAST y se publica al exchange `ecommerce.events` con routing key `customer.created` o `customer.modified`.
+6. En `customers/update`, además se publican eventos de dirección (`address.created` / `address.modified`) por cada dirección del cliente.
+
+### Órdenes (`orders/paid`)
+
+1. Shopify dispara `orders/paid` cuando una orden es pagada.
+2. El webhook responde `200` inmediatamente y procesa en `setImmediate`.
+3. Si la orden no tiene cliente asociado, se omite.
+4. Se leen los metafields DAST del cliente vía Admin GraphQL.
+5. El payload se transforma al formato DAST y se publica con routing key `order.created`.
 
 ## Metafields DAST
 
@@ -95,11 +111,14 @@ app/
 ├── routes/
 │   ├── webhooks.customers.create.tsx   # Webhook customers/create
 │   ├── webhooks.customers.update.tsx   # Webhook customers/update
+│   ├── webhooks.orders.paid.tsx        # Webhook orders/paid
 │   └── app._index.tsx                  # UI principal embebida
 ├── services/
 │   ├── rabbitmq.server.ts              # Conexión y publicación AMQP
 │   ├── customer.service.ts             # Fetch de metafields vía GraphQL
-│   ├── customer.transformer.ts         # Mapeo Shopify → DAST
+│   ├── customer.transformer.ts         # Mapeo Shopify → DAST (cliente)
+│   ├── address.transformer.ts          # Mapeo Shopify → DAST (dirección)
+│   ├── order.transformer.ts            # Mapeo Shopify → DAST (orden)
 │   └── dast-publish-gate.server.ts     # Validación de perfil completo
 extensions/
 └── customer-profile-fields/            # UI Extension en Customer Account
