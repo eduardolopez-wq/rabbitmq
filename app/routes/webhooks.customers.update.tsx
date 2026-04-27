@@ -21,7 +21,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return;
       }
 
-      const metafields = await loadDastMetafieldsForPublish(admin, customer.id);
+      const metafields = await loadDastMetafieldsForPublish(admin, customer.id, shop);
 
       const primaryAddress = customer.addresses?.[0];
       const effectiveTelephone = (metafields.telephone || customer.phone || "").trim();

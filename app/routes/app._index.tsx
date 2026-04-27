@@ -165,7 +165,7 @@ export default function Index() {
               label="PDS API Key"
               name="pdsApiKey"
               defaultValue={defaults.pdsApiKey}
-              details="Contrato en el portal de gestión."
+              details="UUID de contrato PDS. Si el cliente no tiene metafield de contrato, se usa este valor como contract_public_uuid en RabbitMQ."
             />
             <s-stack direction="inline" gap="base">
               <s-button

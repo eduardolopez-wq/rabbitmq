@@ -20,7 +20,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return;
       }
 
-      const metafields = await loadDastMetafieldsForPublish(admin, customer.id);
+      const metafields = await loadDastMetafieldsForPublish(admin, customer.id, shop);
 
       if (!isDastProfileComplete(metafields)) {
         console.log(

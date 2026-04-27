@@ -25,7 +25,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return;
       }
 
-      const metafields = await loadDastMetafieldsForPublish(admin, order.customer.id);
+      const metafields = await loadDastMetafieldsForPublish(admin, order.customer.id, shop);
       const dastPayload = transformOrderToDast(order, metafields);
 
       console.log("[Webhook] Transformed order DAST payload:", JSON.stringify(dastPayload, null, 2));

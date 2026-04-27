@@ -46,6 +46,17 @@ export async function getAmqpUrlForShop(shop: string): Promise<string> {
   return DEFAULT_RABBITMQ_URL;
 }
 
+/**
+ * UUID de contrato PDS guardado en configuración de la app (campo "PDS API Key").
+ * Se usa como `contract_public_uuid` en RabbitMQ si el metafield del cliente está vacío.
+ */
+export async function getShopPdsContractUuid(shop: string): Promise<string> {
+  const row = await prisma.shopIntegrationSettings.findUnique({
+    where: { shop },
+  });
+  return (row?.pdsApiKey ?? "").trim();
+}
+
 export async function getShopSettingsForForm(shop: string): Promise<ShopSettingsFormValues | null> {
   const row = await prisma.shopIntegrationSettings.findUnique({
     where: { shop },

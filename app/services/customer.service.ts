@@ -126,7 +126,7 @@ export async function fetchCustomerDastMetafields(
   const allMetafields = (diagJson.data?.customer?.metafields?.edges ?? []) as MetafieldEdge[];
   console.log("[CustomerService] ALL metafields:", JSON.stringify(allMetafields, null, 2));
   const metafields: CustomerDastMetafields = {
-    contract_public_uuid: getMetafieldValue(allMetafields, "dast_contract_uuid", (namespace) => namespace === "custom"),
+    contract_public_uuid: getDastMetafieldValue(allMetafields, "dast_contract_uuid").trim(),
     public_id: getDastMetafieldValue(allMetafields, "dast_public_id"),
     document_type: parseInt(getDastMetafieldValue(allMetafields, "dast_document_type") || "0", 10),
     gender: parseInt(getDastMetafieldValue(allMetafields, "dast_gender") || "0", 10),

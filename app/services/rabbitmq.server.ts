@@ -90,7 +90,18 @@ async function connect(amqpUrl: string): Promise<void> {
         scheduleReconnect(amqpUrl);
       });
     } catch (err) {
-      console.error("[RabbitMQ] Fallo al conectar:", (err as Error).message);
+      const e = err as NodeJS.ErrnoException & { message: string };
+      console.error("[RabbitMQ] Fallo al conectar:", e.message);
+      if (e.code === "ETIMEDOUT" || e.code === "EHOSTUNREACH") {
+        console.error(
+          "[RabbitMQ] Pista: timeout o host inalcanzable. Suele ser firewall, puerto 5672 no abierto a Internet, o la IP de origen no está permitida. " +
+            "Pide al equipo de infra que permitan tu IP o abran 5672; en local: `nc -zv rmq.vivofacil.org 5672`."
+        );
+      } else if (e.code === "ECONNREFUSED") {
+        console.error(
+          "[RabbitMQ] Pista: conexión rechazada en el puerto. Comprueba host/puerto; si el broker exige TLS, prueba `amqps` en el host (p. ej. 5671) — hoy la app usa `amqp://` plano en el puerto configurado."
+        );
+      }
       scheduleReconnect(amqpUrl);
     }
   })();
