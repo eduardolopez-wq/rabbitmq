@@ -31,7 +31,8 @@ export interface DastCustomerPayload {
   name: string;
   email: string;
   telephone: string;
-  zip_code: string;
+  /** Omitido si no hay dirección con CP (evita validación fallida en portal). */
+  zip_code?: string;
   country_code: string;
   document_type: number;
   gender: number;
@@ -48,7 +49,7 @@ export function transformShopifyCustomerToDast(
   routingKey: "customer.created" | "customer.modified"
 ): DastCustomerPayload {
   const primaryAddress = payload.addresses?.[0];
-  const fallbackCountryCode = (primaryAddress?.country_code ?? "").toUpperCase();
+  const zipTrimmed = (primaryAddress?.zip ?? "").trim();
 
   const base: DastCustomerPayload = {
     customer_shop_id: payload.id,
@@ -57,14 +58,17 @@ export function transformShopifyCustomerToDast(
     name: `${payload.first_name ?? ""} ${payload.last_name ?? ""}`.trim(),
     email: payload.email ?? "",
     telephone: metafields.telephone || payload.phone || "",
-    zip_code: primaryAddress?.zip ?? "",
-    country_code: metafields.country_code || fallbackCountryCode,
+    country_code: "ES",
     document_type: metafields.document_type,
     gender: metafields.gender,
     birth_date: metafields.birth_date,
     is_guest: false,
     routing_key: routingKey,
   };
+
+  if (zipTrimmed) {
+    base.zip_code = zipTrimmed;
+  }
 
   if (routingKey === "customer.modified") {
     base.updated = 1;

@@ -24,8 +24,8 @@ const DOCUMENT_TYPES = [
   { value: "3", label: "Pasaporte" },
 ];
 
-/** DNI y NIE: longitud fija de negocio. Pasaporte: longitud fija de negocio. */
-const DOCUMENT_LENGTH_DNI_NIE = 10;
+/** DNI y NIE: longitud fija de negocio (9 caracteres). Pasaporte: longitud fija de negocio. */
+const DOCUMENT_LENGTH_DNI_NIE = 9;
 const DOCUMENT_LENGTH_PASSPORT = 20;
 
 function getPublicIdFormatError(documentType: string, raw: string): string | undefined {

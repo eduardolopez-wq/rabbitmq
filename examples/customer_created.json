@@ -1,15 +1,14 @@
 {
-    "customer_shop_id": 8589,
-    "contract_public_uuid": "f0270669-720d-4239-bb80-7eb08678c1d1",
-    "public_id": "33515516P",
-    "name": "Amada de Juan Quirós",
-    "email": "amadadejuan@gmail.com",
-    "telephone": "609636130",
-    "zip_code": "",
-    "country_code": "ES",
-    "document_type": 1,
-    "gender": 2,
-    "birth_date": "1980-03-27",
-    "is_guest": false,
-    "routing_key": "customer.created"
+  "customer_shop_id": 8589,
+  "contract_public_uuid": "f0270669-720d-4239-bb80-7eb08678c1d1",
+  "public_id": "33515516P",
+  "name": "Amada de Juan Quirós",
+  "email": "amadadejuan@gmail.com",
+  "telephone": "609636130",
+  "country_code": "ES",
+  "document_type": 1,
+  "gender": 2,
+  "birth_date": "1980-03-27",
+  "is_guest": false,
+  "routing_key": "customer.created"
 }
