@@ -7,6 +7,7 @@ export type ShopSettingsFormValues = {
   rabbitmqPort: number;
   rabbitmqVhost: string;
   pdsApiKey: string;
+  profileFormEnablePortugal: boolean;
   rabbitmqHasPassword: boolean;
   updatedAt: string;
 };
@@ -70,6 +71,9 @@ export async function getShopSettingsForForm(shop: string): Promise<ShopSettings
     rabbitmqPort: row.rabbitmqPort,
     rabbitmqVhost: row.rabbitmqVhost,
     pdsApiKey: row.pdsApiKey,
+    profileFormEnablePortugal: Boolean(
+      (row as { profileFormEnablePortugal?: boolean }).profileFormEnablePortugal
+    ),
     rabbitmqHasPassword: row.rabbitmqPassword.length > 0,
     updatedAt: row.updatedAt.toISOString(),
   };

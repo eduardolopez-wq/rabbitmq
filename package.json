@@ -15,6 +15,7 @@
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "shopify": "shopify",
     "prisma": "prisma",
+    "db:studio": "prisma studio",
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit"
@@ -74,7 +75,9 @@
     "@shopify/plugin-cloudflare"
   ],
   "overrides": {
-    "p-map": "^4.0.0"
+    "confbox": "0.2.4",
+    "p-map": "^4.0.0",
+    "semver": "7.7.4"
   },
   "author": "spokelopez"
 }

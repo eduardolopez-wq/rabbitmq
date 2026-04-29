@@ -2,11 +2,10 @@
 /** @jsxFrag Fragment */
 import "@shopify/ui-extensions/customer-account";
 import "@shopify/ui-extensions/preact";
-import { createElement, Fragment, render } from "preact";
+import { createElement, render } from "preact";
 import { useState } from "preact/hooks";
 
-// Customer Account GraphQL API endpoint (requires network_access = true)
-const CUSTOMER_ACCOUNT_API_URL = "shopify:customer-account/api/2024-07/graphql.json";
+const CUSTOMER_ACCOUNT_API_URL = "shopify:customer-account/api/2026-01/graphql.json";
 
 async function customerAccountFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
   const res = await fetch(CUSTOMER_ACCOUNT_API_URL, {
@@ -18,13 +17,12 @@ async function customerAccountFetch<T>(query: string, variables?: Record<string,
   return json as T;
 }
 
+/** Valor metafield `dast_document_type`: 1 = DNI/NIE unificado, 3 = Pasaporte */
 const DOCUMENT_TYPES = [
-  { value: "1", label: "DNI" },
-  { value: "2", label: "NIE" },
+  { value: "1", label: "DNI/NIE" },
   { value: "3", label: "Pasaporte" },
 ];
 
-/** DNI y NIE: longitud fija de negocio (9 caracteres). Pasaporte: longitud fija de negocio. */
 const DOCUMENT_LENGTH_DNI_NIE = 9;
 const DOCUMENT_LENGTH_PASSPORT = 20;
 
@@ -36,9 +34,9 @@ function getPublicIdFormatError(documentType: string, raw: string): string | und
   if (!id) {
     return "El número de documento es obligatorio";
   }
-  if (documentType === "1" || documentType === "2") {
+  if (documentType === "1") {
     if (id.length !== DOCUMENT_LENGTH_DNI_NIE) {
-      return `DNI y NIE deben tener exactamente ${DOCUMENT_LENGTH_DNI_NIE} caracteres`;
+      return `DNI/NIE debe tener exactamente ${DOCUMENT_LENGTH_DNI_NIE} caracteres`;
     }
     if (!/^[A-Z0-9]+$/.test(id)) {
       return "Solo se permiten letras y números, sin espacios";
@@ -63,7 +61,6 @@ const GENDER_OPTIONS = [
   { value: "3", label: "Prefiero no decirlo" },
 ];
 
-// Mismo orden que en Admin (lista personalizada): primero Portugal, luego España → índices 0=PT, 1=ES en customer.service
 const COUNTRY_OPTIONS = [
   { value: "PT", label: "Portugal (PT)" },
   { value: "ES", label: "Espana (ES)" },
@@ -74,6 +71,27 @@ const METAFIELDS_SET_MUTATION = `#graphql
     metafieldsSet(metafields: $metafields) {
       metafields { key value }
       userErrors { field message }
+    }
+  }
+`;
+
+const GET_CUSTOMER_PROFILE_COMBINED_QUERY = `#graphql
+  query GetCustomerProfileExtensionData {
+    shop {
+      profileShowPortugal: metafield(namespace: "vivofacil_dast", key: "profile_show_portugal") {
+        value
+      }
+    }
+    customer {
+      id
+      publicId: metafield(namespace: "$app", key: "dast_public_id") { value }
+      documentType: metafield(namespace: "$app", key: "dast_document_type") { value }
+      gender: metafield(namespace: "$app", key: "dast_gender") { value }
+      birthDate: metafield(namespace: "$app", key: "dast_birth_date") { value }
+      telephoneApp: metafield(namespace: "$app", key: "dast_telephone") { value }
+      phoneCustom: metafield(namespace: "custom", key: "dast_phone") { value }
+      countryApp: metafield(namespace: "$app", key: "dast_country_code") { value }
+      countryCustom: metafield(namespace: "custom", key: "dast_country") { value }
     }
   }
 `;
@@ -112,6 +130,15 @@ function countryMetafieldToFormValue(raw: string): string {
   return "";
 }
 
+/** Antiguo NIE (2) se muestra como DNI/NIE unificado (1). */
+function normalizeDocumentTypeForForm(raw: string): string {
+  const t = raw.trim();
+  if (t === "2") {
+    return "1";
+  }
+  return t;
+}
+
 interface FormValues {
   publicId: string;
   documentType: string;
@@ -134,9 +161,10 @@ interface ExtensionProps {
   initialValues: FormValues;
   initialComplete: boolean;
   customerId: string;
+  enablePortugal: boolean;
 }
 
-function validate(values: FormValues): FormErrors {
+function validate(values: FormValues, enablePortugal: boolean): FormErrors {
   const errors: FormErrors = {};
 
   if (!values.documentType) {
@@ -166,16 +194,19 @@ function validate(values: FormValues): FormErrors {
   } else if (!/^[0-9+\s-]{7,20}$/.test(values.telephone.trim())) {
     errors.telephone = "Formato de telefono no valido";
   }
-  if (!values.countryCode) {
-    errors.countryCode = "Selecciona el pais";
-  } else if (!["ES", "PT"].includes(values.countryCode)) {
-    errors.countryCode = "Solo se admite Espana o Portugal";
+
+  if (enablePortugal) {
+    if (!values.countryCode) {
+      errors.countryCode = "Selecciona el pais";
+    } else if (!["ES", "PT"].includes(values.countryCode)) {
+      errors.countryCode = "Solo se admite Espana o Portugal";
+    }
   }
 
   return errors;
 }
 
-function Extension({ initialValues, initialComplete, customerId }: ExtensionProps) {
+function Extension({ initialValues, initialComplete, customerId, enablePortugal }: ExtensionProps) {
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
@@ -195,17 +226,23 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
       return { ...prev, [field]: value };
     });
     if (errors[field] || (field === "documentType" && errors.publicId)) {
-      setErrors((prev) => ({ ...prev, [field]: undefined, ...(field === "documentType" ? { publicId: undefined } : {}) }));
+      setErrors((prev) => ({
+        ...prev,
+        [field]: undefined,
+        ...(field === "documentType" ? { publicId: undefined } : {}),
+      }));
     }
     setSaved(false);
   }
 
   async function handleSubmit() {
-    const validationErrors = validate(values);
+    const validationErrors = validate(values, enablePortugal);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
+
+    const countryForMeta = enablePortugal ? values.countryCode.toUpperCase() : "ES";
 
     setSaving(true);
     setServerError("");
@@ -215,12 +252,48 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
         METAFIELDS_SET_MUTATION,
         {
           metafields: [
-            { ownerId: customerId, namespace: "$app", key: "dast_public_id", value: values.publicId.trim().toUpperCase(), type: "single_line_text_field" },
-            { ownerId: customerId, namespace: "$app", key: "dast_document_type", value: values.documentType, type: "number_integer" },
-            { ownerId: customerId, namespace: "$app", key: "dast_gender", value: values.gender, type: "number_integer" },
-            { ownerId: customerId, namespace: "$app", key: "dast_birth_date", value: values.birthDate, type: "date" },
-            { ownerId: customerId, namespace: "$app", key: "dast_telephone", value: values.telephone.trim(), type: "single_line_text_field" },
-            { ownerId: customerId, namespace: "$app", key: "dast_country_code", value: values.countryCode.toUpperCase(), type: "single_line_text_field" },
+            {
+              ownerId: customerId,
+              namespace: "$app",
+              key: "dast_public_id",
+              value: values.publicId.trim().toUpperCase(),
+              type: "single_line_text_field",
+            },
+            {
+              ownerId: customerId,
+              namespace: "$app",
+              key: "dast_document_type",
+              value: values.documentType,
+              type: "number_integer",
+            },
+            {
+              ownerId: customerId,
+              namespace: "$app",
+              key: "dast_gender",
+              value: values.gender,
+              type: "number_integer",
+            },
+            {
+              ownerId: customerId,
+              namespace: "$app",
+              key: "dast_birth_date",
+              value: values.birthDate,
+              type: "date",
+            },
+            {
+              ownerId: customerId,
+              namespace: "$app",
+              key: "dast_telephone",
+              value: values.telephone.trim(),
+              type: "single_line_text_field",
+            },
+            {
+              ownerId: customerId,
+              namespace: "$app",
+              key: "dast_country_code",
+              value: countryForMeta,
+              type: "single_line_text_field",
+            },
           ],
         }
       );
@@ -259,18 +332,24 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
 
         <s-form>
           <s-stack direction="block" gap="base">
-            <s-select
-              label="Pais"
-              name="countryCode"
-              value={values.countryCode}
-              onChange={(e: Event) => handleChange("countryCode", (e.target as HTMLSelectElement).value)}
-            >
-              <s-option value="">Selecciona...</s-option>
-              {COUNTRY_OPTIONS.map((opt) => (
-                <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
-              ))}
-            </s-select>
-            {errors.countryCode && <s-text tone="critical">{errors.countryCode}</s-text>}
+            {enablePortugal ? (
+              <s-stack direction="block" gap="base">
+                <s-select
+                  label="Pais"
+                  name="countryCode"
+                  value={values.countryCode}
+                  onChange={(e: Event) => handleChange("countryCode", (e.target as HTMLSelectElement).value)}
+                >
+                  <s-option value="">Selecciona...</s-option>
+                  {COUNTRY_OPTIONS.map((opt) => (
+                    <s-option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </s-option>
+                  ))}
+                </s-select>
+                {errors.countryCode && <s-text tone="critical">{errors.countryCode}</s-text>}
+              </s-stack>
+            ) : null}
 
             <s-select
               label="Tipo de documento"
@@ -280,13 +359,15 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
             >
               <s-option value="">Selecciona...</s-option>
               {DOCUMENT_TYPES.map((opt) => (
-                <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
+                <s-option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </s-option>
               ))}
             </s-select>
             {errors.documentType && <s-text tone="critical">{errors.documentType}</s-text>}
 
             {!values.documentType && (
-              <s-text tone="subdued">Selecciona primero el tipo de documento para introducir el número.</s-text>
+              <s-text tone="neutral">Selecciona primero el tipo de documento para introducir el número.</s-text>
             )}
             <s-text-field
               label="Número de documento"
@@ -312,7 +393,9 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
             >
               <s-option value="">Selecciona...</s-option>
               {GENDER_OPTIONS.map((opt) => (
-                <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
+                <s-option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </s-option>
               ))}
             </s-select>
             {errors.gender && <s-text tone="critical">{errors.gender}</s-text>}
@@ -347,46 +430,84 @@ function Extension({ initialValues, initialComplete, customerId }: ExtensionProp
   );
 }
 
-// Query runs BEFORE render — this is the correct pattern for Customer Account extensions
+type CombinedQueryResult = {
+  data?: {
+    shop?: { profileShowPortugal?: { value?: string | null } | null } | null;
+    customer?: Record<string, { value: string } | undefined> & {
+      id?: string;
+      phoneCustom?: { value: string };
+      telephoneApp?: { value: string };
+      countryCustom?: { value: string };
+      countryApp?: { value: string };
+    };
+  };
+  errors?: { message: string }[];
+};
+
 export default async () => {
-  let initialValues: FormValues = { publicId: "", documentType: "", gender: "", birthDate: "", telephone: "", countryCode: "" };
+  let initialValues: FormValues = {
+    publicId: "",
+    documentType: "",
+    gender: "",
+    birthDate: "",
+    telephone: "",
+    countryCode: "",
+  };
   let initialComplete = false;
   let customerId = "";
+  let enablePortugal = false;
 
   try {
-    const result = await customerAccountFetch<{
-      data?: {
-        customer?: Record<string, { value: string } | undefined> & {
-          id?: string;
-          phoneCustom?: { value: string };
-          telephoneApp?: { value: string };
-          countryCustom?: { value: string };
-          countryApp?: { value: string };
-        };
-      };
-    }>(GET_CUSTOMER_METAFIELDS_QUERY);
-    const c = result?.data?.customer;
+    let combined = await customerAccountFetch<CombinedQueryResult>(GET_CUSTOMER_PROFILE_COMBINED_QUERY);
+
+    if (combined.errors?.length) {
+      combined = await customerAccountFetch<CombinedQueryResult>(GET_CUSTOMER_METAFIELDS_QUERY);
+      enablePortugal = false;
+    } else {
+      const shopFlag = combined.data?.shop?.profileShowPortugal?.value;
+      enablePortugal = shopFlag === "true";
+    }
+
+    const c = combined.data?.customer;
     customerId = c?.id ?? "";
     const phoneRaw = c?.phoneCustom?.value ?? c?.telephoneApp?.value ?? "";
     const countryRaw = c?.countryCustom?.value ?? c?.countryApp?.value ?? "";
+
+    const rawDocType = c?.documentType?.value ?? "";
+    const documentType = normalizeDocumentTypeForForm(rawDocType);
+
     initialValues = {
       publicId: c?.publicId?.value ?? "",
-      documentType: c?.documentType?.value ?? "",
+      documentType,
       gender: c?.gender?.value ?? "",
       birthDate: c?.birthDate?.value ?? "",
       telephone: phoneRaw.trim(),
       countryCode: countryMetafieldToFormValue(countryRaw),
     };
+
+    if (!enablePortugal) {
+      initialValues.countryCode = "ES";
+    }
+
+    const countryOk = enablePortugal ? !!initialValues.countryCode : true;
     initialComplete =
       !!initialValues.publicId &&
       !!initialValues.documentType &&
       !!initialValues.gender &&
       !!initialValues.birthDate &&
       !!initialValues.telephone &&
-      !!initialValues.countryCode;
+      countryOk;
   } catch (err) {
     console.error("[CustomerProfileFields] Error loading metafields:", err);
   }
 
-  render(<Extension initialValues={initialValues} initialComplete={initialComplete} customerId={customerId} />, document.body);
+  render(
+    <Extension
+      initialValues={initialValues}
+      initialComplete={initialComplete}
+      customerId={customerId}
+      enablePortugal={enablePortugal}
+    />,
+    document.body
+  );
 };

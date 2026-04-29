@@ -37,6 +37,9 @@ if (host === "localhost") {
 
 export default defineConfig({
   server: {
+    // El CLI de Shopify (Cloudflare tunnel) suele resolver `localhost` a ::1 (IPv6).
+    // Sin esto, el proxy puede dar ECONNREFUSED aunque el puerto sea correcto.
+    host: true,
     allowedHosts: [host],
     cors: {
       preflightContinue: true,

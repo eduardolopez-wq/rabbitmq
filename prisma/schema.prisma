@@ -49,6 +49,8 @@ model ShopIntegrationSettings {
   rabbitmqPort     Int      @default(5672)
   rabbitmqVhost    String   @default("/")
   pdsApiKey        String   @default("")
+  /** Si es true, el formulario cuenta cliente muestra España + Portugal; si false, solo ES (sin selector país). */
+  profileFormEnablePortugal Boolean @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

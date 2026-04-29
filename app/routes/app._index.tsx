@@ -9,6 +9,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import { getShopSettingsForForm } from "../services/shop-settings.server";
+import { syncShopProfileFormShopMetafield } from "../services/profile-form-shop-metafield.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 type FieldErrors = Partial<{
@@ -28,7 +29,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs): Promise<ActionData> => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const formData = await request.formData();
 
   const rabbitmqHost = String(formData.get("rabbitmqHost") ?? "").trim();
@@ -37,6 +38,7 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
   const rabbitmqPortRaw = String(formData.get("rabbitmqPort") ?? "").trim();
   const rabbitmqVhostRaw = String(formData.get("rabbitmqVhost") ?? "").trim();
   const pdsApiKey = String(formData.get("pdsApiKey") ?? "").trim();
+  const profileFormEnablePortugal = String(formData.get("profileFormEnablePortugal") ?? "") === "true";
 
   const errors: FieldErrors = {};
 
@@ -62,7 +64,7 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
   const rabbitmqPassword =
     rabbitmqPasswordRaw.trim() || existing?.rabbitmqPassword || "";
 
-  await prisma.shopIntegrationSettings.upsert({
+  const upsertPayload = {
     where: { shop: session.shop },
     create: {
       shop: session.shop,
@@ -72,6 +74,7 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
       rabbitmqPort: port,
       rabbitmqVhost,
       pdsApiKey,
+      profileFormEnablePortugal,
     },
     update: {
       rabbitmqHost,
@@ -80,8 +83,13 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
       rabbitmqPort: port,
       rabbitmqVhost,
       pdsApiKey,
+      profileFormEnablePortugal,
     },
-  });
+  };
+
+  await prisma.shopIntegrationSettings.upsert(upsertPayload as never);
+
+  await syncShopProfileFormShopMetafield(admin, profileFormEnablePortugal);
 
   return { ok: true };
 };
@@ -108,77 +116,109 @@ export default function Index() {
     rabbitmqPort: settings?.rabbitmqPort ?? 5672,
     rabbitmqVhost: settings?.rabbitmqVhost ?? "/",
     pdsApiKey: settings?.pdsApiKey ?? "",
+    profileFormEnablePortugal: settings?.profileFormEnablePortugal ?? false,
   };
 
   return (
-    <s-page heading="Configuración RabbitMQ">
-      <s-section heading="Conexión Portal de Gestión">
-
-        <fetcher.Form
-          method="post"
-          key={settings?.updatedAt ?? "new"}
-        >
-          <s-stack direction="block" gap="base">
-            <s-text-field
-              label="URL RabbitMQ"
-              name="rabbitmqHost"
-              defaultValue={defaults.rabbitmqHost}
-              details="Ejemplo: localhost o rmq.vivofacil.org"
-              required
-              error={fieldErrors?.rabbitmqHost}
-            />
-            <s-text-field
-              label="Usuario RabbitMQ"
-              name="rabbitmqUser"
-              defaultValue={defaults.rabbitmqUser}
-              required
-              error={fieldErrors?.rabbitmqUser}
-            />
-            <s-password-field
-              label="Contraseña RabbitMQ"
-              name="rabbitmqPassword"
-              autocomplete="new-password"
-              details={
-                settings?.rabbitmqHasPassword
-                  ? "Dejar en blanco para no cambiar la contraseña guardada."
-                  : "Obligatoria si el broker la exige."
-              }
-              error={fieldErrors?.rabbitmqPassword}
-            />
-            <s-text-field
-              label="Puerto RabbitMQ"
-              name="rabbitmqPort"
-              defaultValue={String(defaults.rabbitmqPort)}
-              details="Normalmente 5672"
-              required
-              error={fieldErrors?.rabbitmqPort}
-            />
-            <s-text-field
-              label="VHost RabbitMQ"
-              name="rabbitmqVhost"
-              defaultValue={defaults.rabbitmqVhost}
-              details="Normalmente /"
-              required
-              error={fieldErrors?.rabbitmqVhost}
-            />
-            <s-text-field
-              label="PDS API Key"
-              name="pdsApiKey"
-              defaultValue={defaults.pdsApiKey}
-              details="UUID de contrato PDS. Si el cliente no tiene metafield de contrato, se usa este valor como contract_public_uuid en RabbitMQ."
-            />
-            <s-stack direction="inline" gap="base">
-              <s-button
-                variant="primary"
-                type="submit"
-                {...(isSaving ? { loading: true } : {})}
-              >
-                Guardar
-              </s-button>
+    <s-page heading="Configuración">
+      <fetcher.Form method="post" key={settings?.updatedAt ?? "new"}>
+        <s-stack direction="block" gap="large">
+          <s-section heading="Conexión Portal de Gestión">
+            <s-stack direction="block" gap="base">
+              <s-text-field
+                label="URL RabbitMQ"
+                name="rabbitmqHost"
+                defaultValue={defaults.rabbitmqHost}
+                details="Ejemplo: localhost o rmq.vivofacil.org"
+                required
+                error={fieldErrors?.rabbitmqHost}
+              />
+              <s-text-field
+                label="Usuario RabbitMQ"
+                name="rabbitmqUser"
+                defaultValue={defaults.rabbitmqUser}
+                required
+                error={fieldErrors?.rabbitmqUser}
+              />
+              <s-password-field
+                label="Contraseña RabbitMQ"
+                name="rabbitmqPassword"
+                autocomplete="new-password"
+                details={
+                  settings?.rabbitmqHasPassword
+                    ? "Dejar en blanco para no cambiar la contraseña guardada."
+                    : "Obligatoria si el broker la exige."
+                }
+                error={fieldErrors?.rabbitmqPassword}
+              />
+              <s-text-field
+                label="Puerto RabbitMQ"
+                name="rabbitmqPort"
+                defaultValue={String(defaults.rabbitmqPort)}
+                details="Normalmente 5672"
+                required
+                error={fieldErrors?.rabbitmqPort}
+              />
+              <s-text-field
+                label="VHost RabbitMQ"
+                name="rabbitmqVhost"
+                defaultValue={defaults.rabbitmqVhost}
+                details="Normalmente /"
+                required
+                error={fieldErrors?.rabbitmqVhost}
+              />
+              <s-text-field
+                label="PDS API Key"
+                name="pdsApiKey"
+                defaultValue={defaults.pdsApiKey}
+                details="UUID de contrato PDS. Si el cliente no tiene metafield de contrato, se usa este valor como contract_public_uuid en RabbitMQ."
+              />
             </s-stack>
+          </s-section>
+
+          <s-section heading="Formulario datos (cuenta cliente)">
+            <s-stack direction="block" gap="base">
+              <s-text>
+                ¿Mostrar Portugal en el formulario de perfil del cliente?
+              </s-text>
+              <s-stack direction="block" gap="base">
+                <label>
+                  <input
+                    type="radio"
+                    name="profileFormEnablePortugal"
+                    value="false"
+                    defaultChecked={!defaults.profileFormEnablePortugal}
+                  />{" "}
+                  No — solo España (sin selector de país)
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="profileFormEnablePortugal"
+                    value="true"
+                    defaultChecked={defaults.profileFormEnablePortugal}
+                  />{" "}
+                  Sí — mostrar selector España / Portugal
+                </label>
+              </s-stack>
+              <s-text tone="neutral">
+                Si eliges solo España, en la cuenta cliente no se muestra el país y se guarda ES; en
+                RabbitMQ el payload de cliente sigue con country_code ES.
+              </s-text>
+            </s-stack>
+          </s-section>
+
+          <s-stack direction="inline" gap="base">
+            <s-button
+              variant="primary"
+              type="submit"
+              {...(isSaving ? { loading: true } : {})}
+            >
+              Guardar
+            </s-button>
           </s-stack>
-        </fetcher.Form>
-      </s-section>
+        </s-stack>
+      </fetcher.Form>
     </s-page>
   );
 }
