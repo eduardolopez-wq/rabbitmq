@@ -330,8 +330,7 @@ function Extension({ initialValues, initialComplete, customerId, enablePortugal 
           <s-banner tone="success" heading="Datos guardados correctamente" dismissible />
         )}
 
-        <s-form>
-          <s-stack direction="block" gap="base">
+        <s-stack direction="block" gap="base">
             {enablePortugal ? (
               <s-stack direction="block" gap="base">
                 <s-select
@@ -424,7 +423,6 @@ function Extension({ initialValues, initialComplete, customerId, enablePortugal 
               {saving ? "Guardando..." : "Guardar datos"}
             </s-button>
           </s-stack>
-        </s-form>
       </s-stack>
     </s-section>
   );

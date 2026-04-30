@@ -1,6 +1,9 @@
-import "dotenv/config";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "@prisma/client";
+
+if (typeof process.loadEnvFile === "function") {
+  process.loadEnvFile();
+}
 
 declare global {
   // eslint-disable-next-line no-var
