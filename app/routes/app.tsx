@@ -19,6 +19,7 @@ export default function App() {
     <AppProvider embedded apiKey={apiKey}>
       <s-app-nav>
         <s-link href="/app">Configuración</s-link>
+        <s-link href="/app/settings/profile-form">Formulario cliente</s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>

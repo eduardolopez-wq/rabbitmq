@@ -1,13 +1,12 @@
 import type { ShopIntegrationSettings } from "@prisma/client";
 import prisma from "../db.server";
 
-export type ShopSettingsFormValues = {
+export type IntegrationSettingsFormValues = {
   rabbitmqHost: string;
   rabbitmqUser: string;
   rabbitmqPort: number;
   rabbitmqVhost: string;
   pdsApiKey: string;
-  profileFormEnablePortugal: boolean;
   rabbitmqHasPassword: boolean;
   updatedAt: string;
 };
@@ -58,7 +57,9 @@ export async function getShopPdsContractUuid(shop: string): Promise<string> {
   return (row?.pdsApiKey ?? "").trim();
 }
 
-export async function getShopSettingsForForm(shop: string): Promise<ShopSettingsFormValues | null> {
+export async function getIntegrationSettingsForForm(
+  shop: string
+): Promise<IntegrationSettingsFormValues | null> {
   const row = await prisma.shopIntegrationSettings.findUnique({
     where: { shop },
   });
@@ -71,9 +72,6 @@ export async function getShopSettingsForForm(shop: string): Promise<ShopSettings
     rabbitmqPort: row.rabbitmqPort,
     rabbitmqVhost: row.rabbitmqVhost,
     pdsApiKey: row.pdsApiKey,
-    profileFormEnablePortugal: Boolean(
-      (row as { profileFormEnablePortugal?: boolean }).profileFormEnablePortugal
-    ),
     rabbitmqHasPassword: row.rabbitmqPassword.length > 0,
     updatedAt: row.updatedAt.toISOString(),
   };

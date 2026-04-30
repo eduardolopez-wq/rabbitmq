@@ -40,7 +40,7 @@ model SeenAddress {
   @@id([addressShopId, shop])
 }
 
-/// Parámetros de integración por tienda (RabbitMQ + PDS), configurables desde el admin embebido.
+/// Credenciales y PDS por tienda (RabbitMQ). Configuración embebida en admin.
 model ShopIntegrationSettings {
   shop             String   @id
   rabbitmqHost     String   @default("")
@@ -49,8 +49,15 @@ model ShopIntegrationSettings {
   rabbitmqPort     Int      @default(5672)
   rabbitmqVhost    String   @default("/")
   pdsApiKey        String   @default("")
-  /** Si es true, el formulario cuenta cliente muestra España + Portugal; si false, solo ES (sin selector país). */
-  profileFormEnablePortugal Boolean @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+/// Opciones del formulario de datos personales (extensión cuenta cliente), por tienda.
+model ShopProfileFormSettings {
+  shop String @id
+  /** Si es true, el formulario cuenta cliente muestra España + Portugal; si false, solo ES (sin selector país). */
+  profileFormEnablePortugal Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

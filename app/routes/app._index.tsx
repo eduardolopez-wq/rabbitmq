@@ -8,8 +8,7 @@ import { useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
-import { getShopSettingsForForm } from "../services/shop-settings.server";
-import { syncShopProfileFormShopMetafield } from "../services/profile-form-shop-metafield.server";
+import { getIntegrationSettingsForForm } from "../services/shop-settings.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 type FieldErrors = Partial<{
@@ -24,12 +23,14 @@ type ActionData = { ok: true } | { ok: false; errors: FieldErrors };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const settings = await getShopSettingsForForm(session.shop);
+  const settings = await getIntegrationSettingsForForm(session.shop);
   return { shop: session.shop, settings };
 };
 
-export const action = async ({ request }: ActionFunctionArgs): Promise<ActionData> => {
-  const { session, admin } = await authenticate.admin(request);
+export const action = async ({
+  request,
+}: ActionFunctionArgs): Promise<ActionData> => {
+  const { session } = await authenticate.admin(request);
   const formData = await request.formData();
 
   const rabbitmqHost = String(formData.get("rabbitmqHost") ?? "").trim();
@@ -38,7 +39,6 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
   const rabbitmqPortRaw = String(formData.get("rabbitmqPort") ?? "").trim();
   const rabbitmqVhostRaw = String(formData.get("rabbitmqVhost") ?? "").trim();
   const pdsApiKey = String(formData.get("pdsApiKey") ?? "").trim();
-  const profileFormEnablePortugal = String(formData.get("profileFormEnablePortugal") ?? "") === "true";
 
   const errors: FieldErrors = {};
 
@@ -64,7 +64,7 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
   const rabbitmqPassword =
     rabbitmqPasswordRaw.trim() || existing?.rabbitmqPassword || "";
 
-  const upsertPayload = {
+  await prisma.shopIntegrationSettings.upsert({
     where: { shop: session.shop },
     create: {
       shop: session.shop,
@@ -74,7 +74,6 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
       rabbitmqPort: port,
       rabbitmqVhost,
       pdsApiKey,
-      profileFormEnablePortugal,
     },
     update: {
       rabbitmqHost,
@@ -83,18 +82,13 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
       rabbitmqPort: port,
       rabbitmqVhost,
       pdsApiKey,
-      profileFormEnablePortugal,
     },
-  };
-
-  await prisma.shopIntegrationSettings.upsert(upsertPayload as never);
-
-  await syncShopProfileFormShopMetafield(admin, profileFormEnablePortugal);
+  });
 
   return { ok: true };
 };
 
-export default function Index() {
+export default function AppHome() {
   const { settings } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
@@ -116,14 +110,13 @@ export default function Index() {
     rabbitmqPort: settings?.rabbitmqPort ?? 5672,
     rabbitmqVhost: settings?.rabbitmqVhost ?? "/",
     pdsApiKey: settings?.pdsApiKey ?? "",
-    profileFormEnablePortugal: settings?.profileFormEnablePortugal ?? false,
   };
 
   return (
     <s-page heading="Configuración">
       <fetcher.Form method="post" key={settings?.updatedAt ?? "new"}>
         <s-stack direction="block" gap="large">
-          <s-section heading="Conexión Portal de Gestión">
+          <s-section heading="Portal de gestión (RabbitMQ / PDS)">
             <s-stack direction="block" gap="base">
               <s-text-field
                 label="URL RabbitMQ"
@@ -173,38 +166,6 @@ export default function Index() {
                 defaultValue={defaults.pdsApiKey}
                 details="UUID de contrato PDS. Si el cliente no tiene metafield de contrato, se usa este valor como contract_public_uuid en RabbitMQ."
               />
-            </s-stack>
-          </s-section>
-
-          <s-section heading="Formulario datos (cuenta cliente)">
-            <s-stack direction="block" gap="base">
-              <s-text>
-                ¿Mostrar Portugal en el formulario de perfil del cliente?
-              </s-text>
-              <s-stack direction="block" gap="base">
-                <label>
-                  <input
-                    type="radio"
-                    name="profileFormEnablePortugal"
-                    value="false"
-                    defaultChecked={!defaults.profileFormEnablePortugal}
-                  />{" "}
-                  No — solo España (sin selector de país)
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="profileFormEnablePortugal"
-                    value="true"
-                    defaultChecked={defaults.profileFormEnablePortugal}
-                  />{" "}
-                  Sí — mostrar selector España / Portugal
-                </label>
-              </s-stack>
-              <s-text tone="neutral">
-                Si eliges solo España, en la cuenta cliente no se muestra el país y se guarda ES; en
-                RabbitMQ el payload de cliente sigue con country_code ES.
-              </s-text>
             </s-stack>
           </s-section>
 
