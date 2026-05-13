@@ -4,6 +4,7 @@ import "@shopify/ui-extensions/customer-account";
 import "@shopify/ui-extensions/preact";
 import { createElement, render } from "preact";
 import { useState } from "preact/hooks";
+import { validateNationalIdDocument, type DocumentIdCountry } from "./documentIdValidate";
 
 const CUSTOMER_ACCOUNT_API_URL = "shopify:customer-account/api/2026-01/graphql.json";
 
@@ -26,28 +27,37 @@ const DOCUMENT_TYPES = [
 const DOCUMENT_LENGTH_DNI_NIE = 9;
 const DOCUMENT_LENGTH_PASSPORT = 20;
 
-function getPublicIdFormatError(documentType: string, raw: string): string | undefined {
+function getPublicIdFormatError(
+  documentType: string,
+  raw: string,
+  opts: { enablePortugal: boolean; countryCode: string },
+): string | undefined {
   if (!documentType) {
     return undefined;
   }
-  const id = raw.trim().toUpperCase();
+  const id = raw.trim();
   if (!id) {
     return "El número de documento es obligatorio";
   }
   if (documentType === "1") {
-    if (id.length !== DOCUMENT_LENGTH_DNI_NIE) {
-      return `DNI/NIE debe tener exactamente ${DOCUMENT_LENGTH_DNI_NIE} caracteres`;
+    if (opts.enablePortugal && !opts.countryCode) {
+      return "Selecciona el país para validar el documento";
     }
-    if (!/^[A-Z0-9]+$/.test(id)) {
-      return "Solo se permiten letras y números, sin espacios";
+    const country = (
+      opts.enablePortugal ? opts.countryCode : "ES"
+    ) as DocumentIdCountry;
+    if (country !== "ES" && country !== "PT") {
+      return undefined;
     }
-    return undefined;
+    const result = validateNationalIdDocument(id, country);
+    return result.ok ? undefined : result.message;
   }
   if (documentType === "3") {
-    if (id.length !== DOCUMENT_LENGTH_PASSPORT) {
+    const up = id.trim().toUpperCase();
+    if (up.length !== DOCUMENT_LENGTH_PASSPORT) {
       return `El pasaporte debe tener exactamente ${DOCUMENT_LENGTH_PASSPORT} caracteres`;
     }
-    if (!/^[A-Z0-9]+$/.test(id)) {
+    if (!/^[A-Z0-9]+$/.test(up)) {
       return "Solo se permiten letras y números, sin espacios";
     }
     return undefined;
@@ -170,7 +180,10 @@ function validate(values: FormValues, enablePortugal: boolean): FormErrors {
   if (!values.documentType) {
     errors.documentType = "Selecciona el tipo de documento";
   }
-  const publicIdErr = getPublicIdFormatError(values.documentType, values.publicId);
+  const publicIdErr = getPublicIdFormatError(values.documentType, values.publicId, {
+    enablePortugal,
+    countryCode: values.countryCode,
+  });
   if (publicIdErr) {
     errors.publicId = publicIdErr;
   }
