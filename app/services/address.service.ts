@@ -2,7 +2,7 @@ import prisma from "../db.server";
 import type { CustomerDastMetafields } from "./customer.service";
 import type { ShopifyAddress, ShopifyCustomerForAddress } from "./address.transformer";
 import { transformAddressToDast } from "./address.transformer";
-import { publishForShop } from "./rabbitmq.server";
+import { publishForShop, buildAmqpHeaders } from "./rabbitmq.server";
 
 /**
  * For each address in the webhook payload:
@@ -32,7 +32,8 @@ export async function publishAddressEvents(
     }
 
     const payload = transformAddressToDast(address, customer, metafields, routingKey);
-    await publishForShop(shop, routingKey, payload);
+    const headers = buildAmqpHeaders(routingKey, "shopify", false);
+    await publishForShop(shop, routingKey, payload, headers);
     console.log(`[AddressService] Published ${routingKey} for address ${address.id}, customer ${customer.id}`);
   }
 }

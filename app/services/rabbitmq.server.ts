@@ -113,10 +113,30 @@ async function connect(amqpUrl: string): Promise<void> {
   }
 }
 
+export interface AmqpHeaders {
+  "x-routing-key": string;
+  "x-origin": string;
+  haspartner: boolean;
+}
+
+/** Construye los headers estándar requeridos por el portal DAST. */
+export function buildAmqpHeaders(
+  routingKey: string,
+  origin: string,
+  hasPartner: boolean
+): AmqpHeaders {
+  return {
+    "x-routing-key": routingKey,
+    "x-origin": origin,
+    haspartner: hasPartner,
+  };
+}
+
 export async function publishForUrl(
   amqpUrl: string,
   routingKey: string,
-  payload: object
+  payload: object,
+  headers?: AmqpHeaders
 ): Promise<void> {
   const message = Buffer.from(JSON.stringify(payload));
 
@@ -139,10 +159,18 @@ export async function publishForUrl(
     const sent = s.channel.publish(EXCHANGE, routingKey, message, {
       persistent: true,
       contentType: "application/json",
+      headers: headers ?? buildAmqpHeaders(routingKey, "shopify", false),
     });
 
     if (sent) {
-      console.log("[RabbitMQ] Publicado en", EXCHANGE, "| routing key:", routingKey);
+      console.log(
+        "[RabbitMQ] Publicado en",
+        EXCHANGE,
+        "| routing key:",
+        routingKey,
+        "| headers:",
+        JSON.stringify(headers ?? {})
+      );
       return;
     }
 
@@ -158,8 +186,9 @@ export async function publishForUrl(
 export async function publishForShop(
   shop: string,
   routingKey: string,
-  payload: object
+  payload: object,
+  headers?: AmqpHeaders
 ): Promise<void> {
   const url = await getAmqpUrlForShop(shop);
-  return publishForUrl(url, routingKey, payload);
+  return publishForUrl(url, routingKey, payload, headers);
 }

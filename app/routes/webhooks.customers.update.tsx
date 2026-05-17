@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { transformShopifyCustomerToDast, type ShopifyCustomerPayload } from "../services/customer.transformer";
-import { publishForShop } from "../services/rabbitmq.server";
+import { publishForShop, buildAmqpHeaders } from "../services/rabbitmq.server";
 import { isDastProfileComplete, loadDastMetafieldsForPublish } from "../services/dast-publish-gate.server";
 import { publishAddressEvents } from "../services/address.service";
 
@@ -42,7 +42,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Publish customer event
       const dastPayload = transformShopifyCustomerToDast(customer, metafields, "customer.modified");
       console.log("[Webhook] Transformed DAST payload:", JSON.stringify(dastPayload, null, 2));
-      await publishForShop(shop, "customer.modified", dastPayload);
+      const headers = buildAmqpHeaders("customer.modified", "shopify", false);
+      await publishForShop(shop, "customer.modified", dastPayload, headers);
       console.log("[Webhook] Successfully published customer.modified for shop:", shop);
 
       // Publish address events for each address in the payload

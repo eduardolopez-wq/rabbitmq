@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { transformShopifyCustomerToDast, type ShopifyCustomerPayload } from "../services/customer.transformer";
-import { publishForShop } from "../services/rabbitmq.server";
+import { publishForShop, buildAmqpHeaders } from "../services/rabbitmq.server";
 import { isDastProfileComplete, loadDastMetafieldsForPublish } from "../services/dast-publish-gate.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -33,7 +33,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const dastPayload = transformShopifyCustomerToDast(customer, metafields, "customer.created");
       console.log("[Webhook] Transformed DAST payload:", JSON.stringify(dastPayload, null, 2));
 
-      await publishForShop(shop, "customer.created", dastPayload);
+      const headers = buildAmqpHeaders("customer.created", "shopify", false);
+      await publishForShop(shop, "customer.created", dastPayload, headers);
       console.log("[Webhook] Successfully published customer.created for shop:", shop);
     } catch (err) {
       const e = err as Error;
