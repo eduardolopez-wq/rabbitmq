@@ -1,14 +1,12 @@
-# Configuración para ambiente PRE
-# Desplegar con: shopify app deploy --config shopify.app.pre.toml
-# Desarrollo local:  shopify app dev --config shopify.app.pre.toml
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "b3b6cb985336f7b5de028569ecb6ab26"
 name = "rabbitmq-portal"
-application_url = "https://rabbitmqportal.vivofacil.org"
+application_url = "https://example.com"
 embedded = true
 
 [build]
-automatically_update_urls_on_dev = false
+automatically_update_urls_on_dev = true
 
 [webhooks]
 api_version = "2026-07"
@@ -34,11 +32,12 @@ api_version = "2026-07"
   uri = "/webhooks/orders/paid"
 
 [access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 # Requeridos para webhooks de clientes, Admin API y metacampos con acceso a cuenta de cliente
 scopes = "write_metaobject_definitions,write_metaobjects,write_products,read_customers,write_customers,customer_read_customers,customer_write_customers,read_orders"
 
 [auth]
-redirect_urls = [ "https://rabbitmqportal.vivofacil.org/auth/callback" ]
+redirect_urls = [ "https://example.com/auth/callback" ]
 
 [customer.metafields.app.dast_public_id]
 type = "single_line_text_field"
@@ -87,3 +86,27 @@ name = "DAST Country Code"
   [customer.metafields.app.dast_country_code.access]
   admin = "merchant_read_write"
   customer_account = "read_write"
+
+[product.metafields.app.demo_info]
+type = "single_line_text_field"
+name = "Demo Source Info"
+description = "Tracks products created by the Shopify app template for development"
+
+  [product.metafields.app.demo_info.access]
+  admin = "merchant_read_write"
+
+[metaobjects.app.example]
+name = "Example"
+description = "An example metaobject definition created by this template"
+
+  [metaobjects.app.example.access]
+  admin = "merchant_read_write"
+
+[metaobjects.app.example.fields.title]
+name = "Title"
+type = "single_line_text_field"
+required = true
+
+[metaobjects.app.example.fields.description]
+name = "Description"
+type = "multi_line_text_field"

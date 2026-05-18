@@ -164,7 +164,7 @@ export default function AppHome() {
                 label="PDS API Key"
                 name="pdsApiKey"
                 defaultValue={defaults.pdsApiKey}
-                details="UUID de contrato PDS. Si el cliente no tiene metafield de contrato, se usa este valor como contract_public_uuid en RabbitMQ."
+                details="UUID de contrato PDS."
               />
             </s-stack>
           </s-section>
